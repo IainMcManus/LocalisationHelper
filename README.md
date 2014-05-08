@@ -17,7 +17,7 @@ Localisation Helper requires Python. I have tested it with Python v2.7.x on OS X
 Usage
 ===============
 
-##python LocalisationHelper -i <Input Folder> -o <Output Folder> [-r] [-mi|-mo|-mb|-mf] [-v]
+**python LocalisationHelper -i <Input Folder> -o <Output Folder> [-r] [-mi|-mo|-mb|-mf] [-v]**
     Input Folder   Base location to search for files with localisable text
     Output Folder  Output location for the localised .strings files
     -r             Add to recursively search through subfolders [default is non-recursive]
@@ -31,7 +31,7 @@ Usage
 Examples
 ===============
 
-Generate the localisation for all .m files in the ~/Documents/TestApp folder and subfolders. 
-All text will be output to the ~/Documents/TestApp/TestApp/en.lproj folder.
+Generate the localisation for all .m files in the *~/Documents/TestApp* folder and subfolders. 
+All text will be output to the *~/Documents/TestApp/TestApp/en.lproj* folder.
 Full merging is enabled. Addition, Update and Deletion of localisation are permitted.
     python LocalisationHelper.py -r -i ~/Documents/TestApp/ -o ~/Documents/TestApp/TestApp/en.lproj -mf
