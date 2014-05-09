@@ -23,7 +23,7 @@ Usage
     -r             Add to recursively search through subfolders [default is non-recursive]
     -mi            Merge with existing files by only adding new text [default]
     -mo            Overwrite all existing localisation
-    -mo            Overwrite all existing localisation
+    -mb            Merge with existing files. Adds new entries and updates entries with different comments.
     -mf            Full merge with existing files. Adds new entries. 
                    Updates entries with different comments. Remove unreferenced keys.
     -v             Verbose mode [default is non-verbose]
