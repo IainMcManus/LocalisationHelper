@@ -17,7 +17,7 @@ Localisation Helper requires Python. I have tested it with Python v2.7.x on OS X
 Usage
 ===============
 
-##python LocalisationHelper -i <Input Folder> -o <Output Folder> [-r] [-mi|-mo|-mb|-mf] [-v]
+##python LocalisationHelper -i <Input Folder> -o <Output Folder> [-r] [-mi | -mo | -mb | -mf] [-v]
     Input Folder   Base location to search for files with localisable text
     Output Folder  Output location for the localised .strings files
     -r             Add to recursively search through subfolders [default is non-recursive]
