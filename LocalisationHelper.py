@@ -68,8 +68,8 @@ def performLocalisation(inputDirectory, outputDirectory, recursive, mergeType, v
     #   - Index of the Comment if present (-1 otherwise)
     #   - Index of the Bundle if present (-1 otherwise)
     regexList = []
-    regexList.append([re.compile('NSLocalizedStringFromTableInBundle\(@"([^"]*)",\s*@"([^"]*)",\s*@"([^"]*)",\s*@"([^"]*)"\s*\)', re.DOTALL),  1,  2,  4, 3])
-    regexList.append([re.compile('NSLocalizedStringFromTableInBundle\(@"([^"]*)",\s*@"([^"]*)",\s*@"([^"]*)",\s*nil\s*\)', re.DOTALL),         1,  2, -1, 3])
+    regexList.append([re.compile('NSLocalizedStringFromTableInBundle\(@"([^"]*)",\s*@"([^"]*)",\s*([^,]*),\s*@"([^"]*)"\s*\)', re.DOTALL),  1,  2,  4, 3])
+    regexList.append([re.compile('NSLocalizedStringFromTableInBundle\(@"([^"]*)",\s*@"([^"]*)",\s*([^,]*),\s*nil\s*\)', re.DOTALL),         1,  2, -1, 3])
     regexList.append([re.compile('NSLocalizedStringFromTable\(@"([^"]*)",\s*@"([^"]*)",\s*@"([^"]*)"\s*\)', re.DOTALL),  1,  2,  3, -1])
     regexList.append([re.compile('NSLocalizedStringFromTable\(@"([^"]*)",\s*@"([^"]*)",\s*nil\s*\)', re.DOTALL),         1,  2, -1, -1])
     regexList.append([re.compile('NSLocalizedString\(@"([^"]*)",\s*@"([^"]*)"\s*\)', re.DOTALL),                         1, -1,  2, -1])
