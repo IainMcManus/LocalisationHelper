@@ -66,11 +66,14 @@ def performLocalisation(inputDirectory, outputDirectory, recursive, mergeType, v
     #   - Index of the Key field if present (-1 otherwise)
     #   - Index of the Table Name field if present (-1 otherwise)
     #   - Index of the Comment if present (-1 otherwise)
+    #   - Index of the Bundle if present (-1 otherwise)
     regexList = []
-    regexList.append([re.compile('NSLocalizedStringFromTable\(@"([^"]*)",\s*@"([^"]*)",\s*@"([^"]*)"\s*\)', re.DOTALL),  1,  2,  3])
-    regexList.append([re.compile('NSLocalizedStringFromTable\(@"([^"]*)",\s*@"([^"]*)",\s*nil\s*\)', re.DOTALL),         1,  2, -1])
-    regexList.append([re.compile('NSLocalizedString\(@"([^"]*)",\s*@"([^"]*)"\s*\)', re.DOTALL),                         1, -1,  2])
-    regexList.append([re.compile('NSLocalizedString\(@"([^"]*)",\s*nil\s*\)', re.DOTALL),                                1, -1, -1])
+    regexList.append([re.compile('NSLocalizedStringFromTableInBundle\(@"([^"]*)",\s*@"([^"]*)",\s*@"([^"]*)",\s*@"([^"]*)"\s*\)', re.DOTALL),  1,  2,  4, 3])
+    regexList.append([re.compile('NSLocalizedStringFromTableInBundle\(@"([^"]*)",\s*@"([^"]*)",\s*@"([^"]*)",\s*nil\s*\)', re.DOTALL),         1,  2, -1, 3])
+    regexList.append([re.compile('NSLocalizedStringFromTable\(@"([^"]*)",\s*@"([^"]*)",\s*@"([^"]*)"\s*\)', re.DOTALL),  1,  2,  3, -1])
+    regexList.append([re.compile('NSLocalizedStringFromTable\(@"([^"]*)",\s*@"([^"]*)",\s*nil\s*\)', re.DOTALL),         1,  2, -1, -1])
+    regexList.append([re.compile('NSLocalizedString\(@"([^"]*)",\s*@"([^"]*)"\s*\)', re.DOTALL),                         1, -1,  2, -1])
+    regexList.append([re.compile('NSLocalizedString\(@"([^"]*)",\s*nil\s*\)', re.DOTALL),                                1, -1, -1, -1])
 
     # Output set
     localisationTables = dict()
@@ -83,7 +86,7 @@ def performLocalisation(inputDirectory, outputDirectory, recursive, mergeType, v
         sourceFile = open(filePath, 'r')
         sourceFileContents = sourceFile.read()
         
-        for regex, keyPos, tablePos, commentPos in regexList:
+        for regex, keyPos, tablePos, commentPos, bundlePos in regexList:
             for result in regex.finditer(sourceFileContents):
                 locKey = result.group(keyPos)
                 locTable = 'Localizable'
