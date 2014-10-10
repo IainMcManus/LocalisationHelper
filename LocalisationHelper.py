@@ -29,7 +29,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-import codecs, getopt, os, re, sys
+import codecs, getopt, os, re, sys, subprocess
 
 # InsertOnly - Existing localisation is not touched - only new localisations are added
 # Overwrite - Existing localisation is purged - new localisations take priority
@@ -40,6 +40,9 @@ import codecs, getopt, os, re, sys
 #           - Existing localisations that do not exist in the new localisation are purged
 class MergeMode:
     InsertOnly, Overwrite, MinimalMerge, FullMerge = range(4)
+    
+class InputFileType:
+    SourceCode, UserInterface = range(2)
 
 # Builds up the list of all matching files
 def buildFileList(inputDirectory, recursive):
@@ -49,11 +52,19 @@ def buildFileList(inputDirectory, recursive):
                 for root, folders, files in os.walk(inputDirectory):
                         for filename in files:
                                 if filename.endswith('.m'):
-                                        fileList.append(os.path.join(root, filename))
+                                        fileList.append([InputFileType.SourceCode, os.path.join(root, filename)])
+                                elif filename.endswith('.xib'):
+                                        fileList.append([InputFileType.UserInterface, os.path.join(root, filename)])
+                                elif filename.endswith('.storyboard'):
+                                        fileList.append([InputFileType.UserInterface, os.path.join(root, filename)])
         else:
                 for filename in os.listdir(inputDirectory):
                         if filename.endswith('.m'):
-                                fileList.append(os.path.join(inputDirectory, filename));
+                                fileList.append([InputFileType.SourceCode, os.path.join(inputDirectory, filename)]);
+                        elif filename.endswith('.xib'):
+                                fileList.append([InputFileType.UserInterface, os.path.join(inputDirectory, filename)]);
+                        elif filename.endswith('.storyboard'):
+                                fileList.append([InputFileType.UserInterface, os.path.join(inputDirectory, filename)]);
 
         return fileList
 
@@ -80,44 +91,61 @@ def performLocalisation(inputDirectory, outputDirectory, recursive, mergeType, v
     
     processFailed = False
     errorMessage = ""
+    
+    # Localised data for the UI
+    localisationData_UI = dict()
 
     # Process each file and extract the localised text entry
-    for filePath in filesToParse:
+    for fileType, filePath in filesToParse:
         sourceFile = open(filePath, 'r')
         sourceFileContents = sourceFile.read()
         
-        for regex, keyPos, tablePos, commentPos, bundlePos in regexList:
-            for result in regex.finditer(sourceFileContents):
-                locKey = result.group(keyPos)
-                locTable = 'Localizable'
-                locComment = ''
+        if fileType == InputFileType.SourceCode:
+            for regex, keyPos, tablePos, commentPos, bundlePos in regexList:
+                for result in regex.finditer(sourceFileContents):
+                    locKey = result.group(keyPos)
+                    locTable = 'Localizable'
+                    locComment = ''
                 
-                if tablePos > 0:
-                    locTable = result.group(tablePos)
-                if commentPos > 0:
-                    locComment = result.group(commentPos)
+                    if tablePos > 0:
+                        locTable = result.group(tablePos)
+                    if commentPos > 0:
+                        locComment = result.group(commentPos)
                 
-                if locTable in localisationTables:
-                    if locKey in localisationTables[locTable]:
-                        [existingValue, existingComment] = localisationTables[locTable][locKey]
+                    if locTable in localisationTables:
+                        if locKey in localisationTables[locTable]:
+                            [existingValue, existingComment] = localisationTables[locTable][locKey]
                         
-                        if existingComment != locComment:
-                            processFailed = True
-                            errorMessage = "Key %s exists with different comments (%s and %s)" % (locKey, existingComment, locComment)
+                            if existingComment != locComment:
+                                processFailed = True
+                                errorMessage = "Key %s exists with different comments (%s and %s)" % (locKey, existingComment, locComment)
+                        else:
+                            localisationTables[locTable][locKey] = [locComment, locComment]
                     else:
+                        localisationTables[locTable] = dict()
                         localisationTables[locTable][locKey] = [locComment, locComment]
-                else:
-                    localisationTables[locTable] = dict()
-                    localisationTables[locTable][locKey] = [locComment, locComment]
+                    
+                    if processFailed:
+                        break
                     
                 if processFailed:
                     break
-                    
+                
             if processFailed:
                 break
-                
-        if processFailed:
-            break
+        elif fileType == InputFileType.UserInterface:
+            # run ibtool to extract the base UI localisation strings
+            outputFileName = os.path.join(outputDirectory, "UI_%s.strings" % os.path.splitext(os.path.basename(filePath))[0])
+            command = "ibtool --export-strings-file \"{outputFileName}\" \"{filePath}\"".format(outputFileName=outputFileName, filePath=filePath)
+            commandOutput = subprocess.check_output(command, shell=True)
+            
+            generatedUIStrings = loadExistingStrings(outputFileName)
+            
+            # merge the localisation
+            numNew, numUpdated, numRemoved, combinedLocalisation = unifyLocalisation(localisationData_UI, generatedUIStrings, MergeMode.InsertOnly)
+            
+            # delete the temporary file
+            os.remove(outputFileName)
     
     if processFailed:
         print errorMessage
@@ -126,6 +154,37 @@ def performLocalisation(inputDirectory, outputDirectory, recursive, mergeType, v
         totalUpdated = 0
         totalRemoved = 0
         
+        UILocalisationFileName = os.path.join(outputDirectory, "UI_Autogenerated.strings")
+
+        # if the UI localisation already exists then load the file      
+        existingUILocalisation = dict()
+        if os.path.exists(UILocalisationFileName):
+            existingUILocalisation = loadExistingStrings(UILocalisationFileName)
+        
+        # merge the existing and new UI localisation
+        numNew, numUpdated, numRemoved, combinedUILocalisation = unifyLocalisation(existingUILocalisation, localisationData_UI, mergeType)
+            
+        # output the summary if we're in verbose mode
+        if verbose:
+            print "%s:" % UILocalisationFileName
+            if numNew == 0 and numUpdated == 0 and numRemoved == 0:
+                print "    No changes made"
+            if numNew > 0:
+                print "    %d entries added" % numNew
+            if numUpdated > 0:
+                print "    %d entries updated" % numUpdated
+            if numRemoved > 0:
+                print "    %d entries removed" % numRemoved
+        
+        # update the totals
+        totalNew += numNew
+        totalUpdated += numUpdated
+        totalRemoved += numRemoved
+            
+        # write out the new UI localisation file
+        writeLocalisedFile(UILocalisationFileName, combinedUILocalisation)
+        
+        # write out the individual localisation tables
         for tableName in localisationTables.keys():
             localisedFileName = os.path.join(outputDirectory, "%s.strings" % tableName)
             
@@ -156,26 +215,8 @@ def performLocalisation(inputDirectory, outputDirectory, recursive, mergeType, v
             totalUpdated += numUpdated
             totalRemoved += numRemoved
             
-            # open and overwrite the existing file
-            localisedFile = codecs.open(localisedFileName, "w", encoding='utf-16')
-            
-            # grab the keys and sort in ascending order
-            localisedKeys = combinedLocalisation.keys()
-            localisedKeys.sort()
-        
             # write out the localised file
-            for key in localisedKeys:
-                value, comment = combinedLocalisation[key]
-            
-                localisedFile.write("/* %s */" % comment)
-                localisedFile.write(os.linesep)
-                
-                localisedFile.write("\"%s\" = \"%s\";" % (key, value))
-                localisedFile.write(os.linesep)
-                
-                localisedFile.write(os.linesep)
- 
-            localisedFile.close()
+            writeLocalisedFile(localisedFileName, combinedLocalisation)
         
         print ""
         print "Summary"
@@ -187,6 +228,28 @@ def performLocalisation(inputDirectory, outputDirectory, recursive, mergeType, v
             print "    %d entries updated" % totalUpdated
         if totalRemoved > 0:
             print "    %d entries removed" % totalRemoved
+
+def writeLocalisedFile(localisedFileName, combinedLocalisation):
+    # open and overwrite the existing file
+    localisedFile = codecs.open(localisedFileName, "w", encoding='utf-16')
+    
+    # grab the keys and sort in ascending order
+    localisedKeys = combinedLocalisation.keys()
+    localisedKeys.sort()
+
+    # write out the localised file
+    for key in localisedKeys:
+        value, comment = combinedLocalisation[key]
+    
+        localisedFile.write("/* %s */" % comment)
+        localisedFile.write(os.linesep)
+        
+        localisedFile.write("\"%s\" = \"%s\";" % (key, value))
+        localisedFile.write(os.linesep)
+        
+        localisedFile.write(os.linesep)
+
+    localisedFile.close()
 
 def unifyLocalisation(existingLocalisation, newLocalisation, mergeType):
     numNew = 0
@@ -247,8 +310,12 @@ def loadExistingStrings(localisedFileName):
     comments = []
     commentRegex = re.compile('/\*([^\*]*)', re.DOTALL)
     for commentIter in commentRegex.finditer(localisedFileContents):
-        comments.append(commentIter.group(1).strip())
-    
+        comment = commentIter.group(1)
+        if len(comment) > 2:
+            comments.append(comment[1:-1])
+        else:
+            comments.append(comment.strip())
+
     #extract all of the entries
     localisedEntries = []
     localisedEntryRegex = re.compile('"([^"]*)"\s=\s*"([^"]*)";', re.DOTALL)
